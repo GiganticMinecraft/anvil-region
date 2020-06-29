@@ -228,7 +228,7 @@ impl<'a> AnvilChunkProvider<'a> {
 }
 
 /// Region represents a 32x32 group of chunks.
-struct AnvilRegion {
+pub struct AnvilRegion {
     /// File in which region are stored.
     file: File,
     /// Array of chunks metadata.
@@ -239,7 +239,7 @@ struct AnvilRegion {
 
 /// Chunk metadata are stored in header.
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
-struct AnvilChunkMetadata {
+pub struct AnvilChunkMetadata {
     /// Sector index from which starts chunk data.
     sector_index: u32,
     /// Amount of sectors used to store chunk.
@@ -249,7 +249,7 @@ struct AnvilChunkMetadata {
 }
 
 impl AnvilChunkMetadata {
-    fn new(sector_index: u32, sectors: u8, last_modified_timestamp: u32) -> Self {
+    pub fn new(sector_index: u32, sectors: u8, last_modified_timestamp: u32) -> Self {
         AnvilChunkMetadata {
             sector_index,
             sectors,
@@ -257,20 +257,20 @@ impl AnvilChunkMetadata {
         }
     }
 
-    fn update_last_modified_timestamp(&mut self) {
+    pub fn update_last_modified_timestamp(&mut self) {
         let system_time = SystemTime::now();
         let time = system_time.duration_since(UNIX_EPOCH).unwrap();
 
         self.last_modified_timestamp = time.as_secs() as u32
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.sectors == 0
     }
 }
 
 impl AnvilRegion {
-    fn new<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let mut file = OpenOptions::new()
             .write(true)
             .read(true)
@@ -296,7 +296,7 @@ impl AnvilRegion {
     }
 
     /// First 8KB of file are header of 1024 offsets and 1024 timestamps.
-    fn read_header(file: &mut File) -> Result<[AnvilChunkMetadata; REGION_CHUNKS], io::Error> {
+    pub fn read_header(file: &mut File) -> Result<[AnvilChunkMetadata; REGION_CHUNKS], io::Error> {
         let mut chunks_metadata = [Default::default(); REGION_CHUNKS];
         let mut values = [0u32; REGION_CHUNKS_METADATA_LENGTH];
 
@@ -319,7 +319,7 @@ impl AnvilRegion {
     }
 
     /// Calculates used sectors.
-    fn used_sectors(total_sectors: u32, chunks_metadata: &[AnvilChunkMetadata]) -> BitVec {
+    pub fn used_sectors(total_sectors: u32, chunks_metadata: &[AnvilChunkMetadata]) -> BitVec {
         let mut used_sectors = bitvec![0; total_sectors as usize];
 
         used_sectors.set(0, true);
@@ -341,7 +341,7 @@ impl AnvilRegion {
         used_sectors
     }
 
-    fn read_chunk(&mut self, chunk_x: u8, chunk_z: u8) -> Result<CompoundTag, ChunkLoadError> {
+    pub fn read_chunk(&mut self, chunk_x: u8, chunk_z: u8) -> Result<CompoundTag, ChunkLoadError> {
         let metadata = self.get_metadata(chunk_x, chunk_z);
 
         if metadata.is_empty() {
@@ -375,7 +375,7 @@ impl AnvilRegion {
         }
     }
 
-    fn write_chunk(
+    pub fn write_chunk(
         &mut self,
         chunk_x: u8,
         chunk_z: u8,
@@ -413,7 +413,7 @@ impl AnvilRegion {
         Ok(())
     }
 
-    fn metadata_index(chunk_x: u8, chunk_z: u8) -> usize {
+    pub fn metadata_index(chunk_x: u8, chunk_z: u8) -> usize {
         assert!(32 > chunk_x, "Region chunk x coordinate out of bounds");
         assert!(32 > chunk_z, "Region chunk y coordinate out of bounds");
 
@@ -421,14 +421,14 @@ impl AnvilRegion {
     }
 
     /// Returns chunk metadata at specified coordinates.
-    fn get_metadata(&self, chunk_x: u8, chunk_z: u8) -> AnvilChunkMetadata {
+    pub fn get_metadata(&self, chunk_x: u8, chunk_z: u8) -> AnvilChunkMetadata {
         self.chunks_metadata[Self::metadata_index(chunk_x, chunk_z)]
     }
 
     /// Finds a place where chunk data of a given length can be put.
     ///
     /// If cannot find a place to put chunk data will extend file.
-    fn find_place(
+    pub fn find_place(
         &mut self,
         chunk_x: u8,
         chunk_z: u8,
@@ -494,7 +494,7 @@ impl AnvilRegion {
     }
 
     /// Updates chunk metadata.
-    fn update_metadata(
+    pub fn update_metadata(
         &mut self,
         chunk_x: u8,
         chunk_z: u8,
