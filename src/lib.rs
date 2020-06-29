@@ -175,7 +175,7 @@ impl<'a> AnvilChunkProvider<'a> {
         }
 
         // TODO: Cache region files.
-        let mut region = AnvilRegion::new(region_path)?;
+        let mut region = AnvilRegion::from_path(region_path)?;
 
         region.read_chunk(region_chunk_x, region_chunk_z)
     }
@@ -221,7 +221,7 @@ impl<'a> AnvilChunkProvider<'a> {
         let region_path = self.folder_path.join(region_name);
 
         // TODO: Cache region files.
-        let mut region = AnvilRegion::new(region_path)?;
+        let mut region = AnvilRegion::from_path(region_path)?;
 
         region.write_chunk(region_chunk_x, region_chunk_z, chunk_compound_tag)
     }
@@ -270,13 +270,7 @@ impl AnvilChunkMetadata {
 }
 
 impl AnvilRegion {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .open(path)?;
-
+    pub fn new(mut file: File) -> Result<Self, io::Error> {
         // If necessary, extend the file length to the length of the header.
         if REGION_HEADER_BYTES_LENGTH > file.metadata()?.len() {
             file.set_len(REGION_HEADER_BYTES_LENGTH)?;
@@ -293,6 +287,16 @@ impl AnvilRegion {
         };
 
         Ok(region)
+    }
+
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+        let file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(path)?;
+
+        AnvilRegion::new(file)
     }
 
     /// First 8KB of file are header of 1024 offsets and 1024 timestamps.
@@ -533,7 +537,7 @@ mod tests {
     #[test]
     fn test_empty_header_write() {
         let file = NamedTempFile::new().unwrap();
-        let region = AnvilRegion::new(file.path()).unwrap();
+        let region = AnvilRegion::from_path(file.path()).unwrap();
         let file_length = region.file.metadata().unwrap().len();
 
         assert_eq!(file_length, REGION_HEADER_BYTES_LENGTH);
@@ -542,7 +546,7 @@ mod tests {
     #[test]
     fn test_empty_region_init() {
         let mut file = NamedTempFile::new().unwrap();
-        AnvilRegion::new(file.path()).unwrap();
+        AnvilRegion::from_path(file.path()).unwrap();
 
         let mut vec = Vec::new();
         file.read_to_end(&mut vec).unwrap();
@@ -563,7 +567,7 @@ mod tests {
         let path = Path::new("test/region/r.0.0.mca");
         assert!(path.exists());
 
-        let region = AnvilRegion::new(path).unwrap();
+        let region = AnvilRegion::from_path(path).unwrap();
 
         for (index, expected_chunk_metadata) in expected_data.iter().enumerate() {
             let chunk_metadata = region.chunks_metadata[256 + index];
@@ -577,7 +581,7 @@ mod tests {
         let path = Path::new("test/region/r.0.0.mca");
         assert!(path.exists());
 
-        let mut region = AnvilRegion::new(path).unwrap();
+        let mut region = AnvilRegion::from_path(path).unwrap();
         let compound_tag = region.read_chunk(15, 3).unwrap();
         let level_tag = compound_tag.get_compound_tag("Level").unwrap();
 
@@ -590,7 +594,7 @@ mod tests {
         let path = Path::new("test/empty_region.mca");
         assert!(path.exists());
 
-        let mut region = AnvilRegion::new(path).unwrap();
+        let mut region = AnvilRegion::from_path(path).unwrap();
         let load_error = region.read_chunk(0, 0).err().unwrap();
 
         match load_error {
@@ -647,7 +651,7 @@ mod tests {
     #[test]
     fn test_update_metadata() {
         let mut file = NamedTempFile::new().unwrap();
-        let mut region = AnvilRegion::new(file.path()).unwrap();
+        let mut region = AnvilRegion::from_path(file.path()).unwrap();
 
         let mut metadata = AnvilChunkMetadata::new(500, 10, 0);
         metadata.update_last_modified_timestamp();
@@ -665,7 +669,7 @@ mod tests {
     #[test]
     fn test_write_chunk_with_file_extend() {
         let file = NamedTempFile::new().unwrap();
-        let mut region = AnvilRegion::new(file.path()).unwrap();
+        let mut region = AnvilRegion::from_path(file.path()).unwrap();
 
         let mut write_compound_tag = CompoundTag::new();
         write_compound_tag.insert_bool("test_bool", true);
@@ -689,7 +693,7 @@ mod tests {
     #[test]
     fn test_write_chunk_same_sector() {
         let file = NamedTempFile::new().unwrap();
-        let mut region = AnvilRegion::new(file.path()).unwrap();
+        let mut region = AnvilRegion::from_path(file.path()).unwrap();
 
         let mut write_compound_tag_1 = CompoundTag::new();
         write_compound_tag_1.insert_bool("test_bool", true);
@@ -721,7 +725,7 @@ mod tests {
     #[test]
     fn test_write_chunk_same_sector_with_file_expand() {
         let file = NamedTempFile::new().unwrap();
-        let mut region = AnvilRegion::new(file.path()).unwrap();
+        let mut region = AnvilRegion::from_path(file.path()).unwrap();
 
         let mut write_compound_tag_1 = CompoundTag::new();
         write_compound_tag_1.insert_bool("test_bool", true);
@@ -753,7 +757,7 @@ mod tests {
     #[test]
     fn test_write_chunk_with_insert_in_middle() {
         let file = NamedTempFile::new().unwrap();
-        let mut region = AnvilRegion::new(file.path()).unwrap();
+        let mut region = AnvilRegion::from_path(file.path()).unwrap();
 
         let mut write_compound_tag = CompoundTag::new();
         write_compound_tag.insert_bool("test_bool", true);
@@ -778,7 +782,7 @@ mod tests {
     #[test]
     fn test_write_chunk_not_enough_gap() {
         let file = NamedTempFile::new().unwrap();
-        let mut region = AnvilRegion::new(file.path()).unwrap();
+        let mut region = AnvilRegion::from_path(file.path()).unwrap();
 
         let mut write_compound_tag_1 = CompoundTag::new();
         write_compound_tag_1.insert_bool("test_bool", true);
