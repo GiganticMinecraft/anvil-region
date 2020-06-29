@@ -300,7 +300,7 @@ impl AnvilRegion {
     }
 
     /// First 8KB of file are header of 1024 offsets and 1024 timestamps.
-    pub fn read_header(file: &mut File) -> Result<[AnvilChunkMetadata; REGION_CHUNKS], io::Error> {
+    fn read_header(file: &mut File) -> Result<[AnvilChunkMetadata; REGION_CHUNKS], io::Error> {
         let mut chunks_metadata = [Default::default(); REGION_CHUNKS];
         let mut values = [0u32; REGION_CHUNKS_METADATA_LENGTH];
 
@@ -323,7 +323,7 @@ impl AnvilRegion {
     }
 
     /// Calculates used sectors.
-    pub fn used_sectors(total_sectors: u32, chunks_metadata: &[AnvilChunkMetadata]) -> BitVec {
+    fn used_sectors(total_sectors: u32, chunks_metadata: &[AnvilChunkMetadata]) -> BitVec {
         let mut used_sectors = bitvec![0; total_sectors as usize];
 
         used_sectors.set(0, true);
