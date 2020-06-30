@@ -364,22 +364,16 @@ impl<R : Read + Write + Seek> AnvilRegion<R> {
         used_sectors
     }
 
-    pub fn read_all_chunks(&mut self) -> Result<Vec<CompoundTag>, ChunkLoadError> {
+    pub fn read_all_chunks(&mut self) -> Vec<Result<CompoundTag, ChunkLoadError>> {
         let mut chunks = Vec::new();
 
         for chunk_x in 0..32 {
             for chunk_z in 0..32 {
-                match self.read_chunk(chunk_x, chunk_z) {
-                    Ok(c) => {
-                        chunks.push(c);
-                    },
-                    Err(ChunkLoadError::ChunkNotFound { .. }) => {},
-                    Err(e) => { return Err(e) }
-                }
+                chunks.push(self.read_chunk(chunk_x, chunk_z));
             }
         }
 
-        Ok(chunks)
+        chunks
     }
 
     pub fn read_chunk(&mut self, chunk_x: u8, chunk_z: u8) -> Result<CompoundTag, ChunkLoadError> {
