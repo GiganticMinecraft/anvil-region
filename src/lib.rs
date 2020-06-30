@@ -228,9 +228,9 @@ impl<'a> AnvilChunkProvider<'a> {
 }
 
 /// Region represents a 32x32 group of chunks.
-pub struct AnvilRegion {
-    /// File in which region are stored.
-    file: File,
+pub struct AnvilRegion<R : Read + Write + Seek> {
+    /// Object representing a file (on disk or on memory) in which region are stored.
+    file: R,
     /// Array of chunks metadata.
     chunks_metadata: [AnvilChunkMetadata; REGION_CHUNKS],
     /// Used sectors for chunks data.
@@ -269,15 +269,43 @@ impl AnvilChunkMetadata {
     }
 }
 
-impl AnvilRegion {
-    pub fn new(mut file: File) -> Result<Self, io::Error> {
+impl AnvilRegion<File> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+        let file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(path)?;
+
+        AnvilRegion::new(file)
+    }
+}
+
+trait ReadWriteSeekExt<R> {
+    fn destructively_get_len(&mut self) -> io::Result<u64>;
+    fn destructively_extend_until(&mut self, length: u64) -> io::Result<()>;
+}
+
+impl<R : Read + Write + Seek> ReadWriteSeekExt<R> for R {
+    fn destructively_get_len(&mut self) -> io::Result<u64> {
+        self.seek(SeekFrom::End(0))
+    }
+
+    fn destructively_extend_until(&mut self, length: u64) -> io::Result<()> {
+        let current_len = self.destructively_get_len()?;
+        let extend_len = (length - current_len).max(0);
+        self.write(&vec![0; extend_len as usize])?;
+        Ok(())
+    }
+}
+
+impl<R : Read + Write + Seek> AnvilRegion<R> {
+    pub fn new(mut file: R) -> Result<Self, io::Error> {
         // If necessary, extend the file length to the length of the header.
-        if REGION_HEADER_BYTES_LENGTH > file.metadata()?.len() {
-            file.set_len(REGION_HEADER_BYTES_LENGTH)?;
-        }
+        file.destructively_extend_until(REGION_HEADER_BYTES_LENGTH)?;
 
         let chunks_metadata = Self::read_header(&mut file)?;
-        let total_sectors = file.metadata()?.len() as u32 / REGION_SECTOR_BYTES_LENGTH as u32;
+        let total_sectors = file.destructively_get_len()? as u32 / REGION_SECTOR_BYTES_LENGTH as u32;
         let used_sectors = Self::used_sectors(total_sectors, &chunks_metadata);
 
         let region = AnvilRegion {
@@ -289,21 +317,12 @@ impl AnvilRegion {
         Ok(region)
     }
 
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
-        let file = OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .open(path)?;
-
-        AnvilRegion::new(file)
-    }
-
     /// First 8KB of file are header of 1024 offsets and 1024 timestamps.
-    fn read_header(file: &mut File) -> Result<[AnvilChunkMetadata; REGION_CHUNKS], io::Error> {
+    fn read_header(file: &mut R) -> Result<[AnvilChunkMetadata; REGION_CHUNKS], io::Error> {
         let mut chunks_metadata = [Default::default(); REGION_CHUNKS];
         let mut values = [0u32; REGION_CHUNKS_METADATA_LENGTH];
 
+        file.seek(SeekFrom::Start(0))?;
         for index in 0..REGION_CHUNKS_METADATA_LENGTH {
             values[index] = file.read_u32::<BigEndian>()?;
         }
@@ -472,7 +491,7 @@ impl AnvilRegion {
             self.used_sectors.set(sector_index, false);
         }
 
-        let file_length = self.file.metadata()?.len();
+        let file_length = self.file.destructively_get_len()?;
         let total_sectors = file_length / REGION_SECTOR_BYTES_LENGTH as u64;
 
         // Trying to find enough big gap between sectors to put chunk.
@@ -503,7 +522,7 @@ impl AnvilRegion {
         // Extending file because cannot find a place to put chunk data.
         let extend_sectors = sectors_required - sectors_free;
         let extend_length = (REGION_SECTOR_BYTES_LENGTH * extend_sectors as u16) as u64;
-        self.file.set_len(file_length + extend_length)?;
+        self.file.destructively_extend_until(file_length + extend_length)?;
 
         // Mark new sectors as used.
         for _ in 0..extend_sectors {
