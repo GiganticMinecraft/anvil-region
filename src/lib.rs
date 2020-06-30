@@ -367,19 +367,25 @@ impl<R : Read + Write + Seek> AnvilRegion<R> {
     pub fn read_all_chunks(&mut self) -> Result<Vec<CompoundTag>, ChunkLoadError> {
         let mut chunks = Vec::new();
 
+        for (chunk_x, chunk_z) in self.enumerate_all_nonempty_chunks() {
+            chunks.push(self.read_chunk(chunk_x, chunk_z)?);
+        }
+
+        Ok(chunks)
+    }
+
+    pub fn enumerate_all_nonempty_chunks(&mut self) -> Vec<(u8, u8)> {
+        let mut chunk_coordinates = Vec::new();
+
         for chunk_x in 0..32 {
             for chunk_z in 0..32 {
-                match self.read_chunk(chunk_x, chunk_z) {
-                    Ok(c) => {
-                        chunks.push(c);
-                    },
-                    Err(ChunkLoadError::ChunkNotFound { .. }) => {},
-                    Err(e) => { return Err(e) }
+                if !self.get_metadata(chunk_x, chunk_z).is_empty() {
+                    chunk_coordinates.push((chunk_x, chunk_z));
                 }
             }
         }
 
-        Ok(chunks)
+        chunk_coordinates
     }
 
     pub fn read_chunk(&mut self, chunk_x: u8, chunk_z: u8) -> Result<CompoundTag, ChunkLoadError> {
