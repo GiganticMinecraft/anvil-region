@@ -305,6 +305,9 @@ impl<R : Read + Write + Seek> AnvilRegion<R> {
         file.destructively_extend_until(REGION_HEADER_BYTES_LENGTH)?;
 
         let chunks_metadata = Self::read_header(&mut file)?;
+
+        println!("Res: {:?}", chunks_metadata.first());
+
         let total_sectors = file.destructively_get_len()? as u32 / REGION_SECTOR_BYTES_LENGTH as u32;
         let used_sectors = Self::used_sectors(total_sectors, &chunks_metadata);
 
