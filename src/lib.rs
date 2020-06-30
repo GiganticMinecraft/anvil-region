@@ -371,9 +371,7 @@ impl<R : Read + Write + Seek> AnvilRegion<R> {
             for chunk_z in 0..32 {
                 match self.read_chunk(chunk_x, chunk_z) {
                     Ok(c) => {
-                        if c.contains_key("xPos") {
-                            chunks.push(c);
-                        }
+                        chunks.push(c);
                     },
                     Err(ChunkLoadError::ChunkNotFound { .. }) => {},
                     Err(e) => { return Err(e) }
