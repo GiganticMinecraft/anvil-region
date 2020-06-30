@@ -293,7 +293,7 @@ impl<R : Read + Write + Seek> ReadWriteSeekExt<R> for R {
 
     fn destructively_extend_until(&mut self, length: u64) -> io::Result<()> {
         let current_len = self.destructively_get_len()?;
-        let extend_len = (length - current_len).max(0);
+        let extend_len = if length > current_len { length - current_len } else { 0 };
         self.write(&vec![0; extend_len as usize])?;
         Ok(())
     }
